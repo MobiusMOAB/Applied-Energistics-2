@@ -43,6 +43,7 @@ public abstract class UpgradeInventory extends AppEngInternalInventory implement
 	private int capacityUpgrades = 0;
 	private int inverterUpgrades = 0;
 	private int craftingUpgrades = 0;
+	private int comparatorUpgrades = 0;
 
 	public UpgradeInventory( IAEAppEngInventory parent, int s )
 	{
@@ -103,6 +104,8 @@ public abstract class UpgradeInventory extends AppEngInternalInventory implement
 				return this.inverterUpgrades;
 			case CRAFTING:
 				return this.craftingUpgrades;
+			case COMPARATOR:
+				return this.comparatorUpgrades;
 			default:
 				return 0;
 		}
@@ -113,7 +116,7 @@ public abstract class UpgradeInventory extends AppEngInternalInventory implement
 	private void updateUpgradeInfo()
 	{
 		this.cached = true;
-		this.inverterUpgrades = this.capacityUpgrades = this.redstoneUpgrades = this.speedUpgrades = this.fuzzyUpgrades = this.craftingUpgrades = 0;
+		this.inverterUpgrades = this.capacityUpgrades = this.redstoneUpgrades = this.speedUpgrades = this.fuzzyUpgrades = this.craftingUpgrades = this.comparatorUpgrades = 0;
 
 		for( ItemStack is : this )
 		{
@@ -143,6 +146,9 @@ public abstract class UpgradeInventory extends AppEngInternalInventory implement
 				case CRAFTING:
 					this.craftingUpgrades++;
 					break;
+				case COMPARATOR:
+					this.comparatorUpgrades++;
+					break;
 				default:
 					break;
 			}
@@ -154,6 +160,7 @@ public abstract class UpgradeInventory extends AppEngInternalInventory implement
 		this.speedUpgrades = Math.min( this.speedUpgrades, this.getMaxInstalled( Upgrades.SPEED ) );
 		this.inverterUpgrades = Math.min( this.inverterUpgrades, this.getMaxInstalled( Upgrades.INVERTER ) );
 		this.craftingUpgrades = Math.min( this.craftingUpgrades, this.getMaxInstalled( Upgrades.CRAFTING ) );
+		this.comparatorUpgrades = Math.min( this.comparatorUpgrades, this.getMaxInstalled( Upgrades.COMPARATOR ) );
 	}
 
 	@Override

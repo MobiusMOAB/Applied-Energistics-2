@@ -620,6 +620,7 @@ public final class Registration
 		// Level Emitter!
 		Upgrades.FUZZY.registerItem( parts.levelEmitter(), 1 );
 		Upgrades.CRAFTING.registerItem( parts.levelEmitter(), 1 );
+		Upgrades.COMPARATOR.registerItem( parts.levelEmitter(), 1 );
 
 		// Import Bus
 		Upgrades.FUZZY.registerItem( parts.importBus(), 1 );

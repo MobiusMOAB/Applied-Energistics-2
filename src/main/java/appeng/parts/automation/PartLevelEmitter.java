@@ -85,20 +85,45 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 	private static final int FLAG_ON = 4;
 
-	final AppEngInternalAEInventory config = new AppEngInternalAEInventory( this, 1 );
+	private final AppEngInternalAEInventory config = new AppEngInternalAEInventory( this, 1 );
 
-	boolean prevState = false;
+	/**
+	 * The internal redstone strength.
+	 */
+	private int strength = 0;
 
-	long lastReportedValue = 0;
-	long reportingValue = 0;
+	/**
+	 * The output strength. Can differ from the internal one, if the emitter output should be flipped.
+	 */
+	private int outputStrength = 0;
 
-	IStackWatcher myWatcher;
-	IEnergyWatcher myEnergyWatcher;
-	ICraftingWatcher myCraftingWatcher;
-	double centerX;
-	double centerY;
-	double centerZ;
-	boolean status = false;
+	/**
+	 * Previous redstone state to detect changes.
+	 */
+	private boolean prevState = false;
+
+	/**
+	 * Previous redstone strength to detect changes.
+	 */
+	private int prevStrength = 0;
+
+	/**
+	 * Current reporting values.
+	 */
+	private long reportingValue = 0;
+
+	/**
+	 * Previous reporting value to detect changes.
+	 */
+	private long lastReportedValue = 0;
+
+	private IStackWatcher myWatcher;
+	private IEnergyWatcher myEnergyWatcher;
+	private ICraftingWatcher myCraftingWatcher;
+
+	private double centerX;
+	private double centerY;
+	private double centerZ;
 
 	@Reflected
 	public PartLevelEmitter( ItemStack is )
@@ -137,12 +162,16 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 	private void updateState()
 	{
-		boolean isOn = this.isLevelEmitterOn();
-		if( this.prevState != isOn )
+		final boolean isOn = this.isLevelEmitterOn();
+		if( this.prevState != isOn || this.prevStrength != this.outputStrength )
 		{
+			final TileEntity te = this.host.getTile();
+
 			this.host.markForUpdate();
-			TileEntity te = this.host.getTile();
+
 			this.prevState = isOn;
+			this.prevStrength = this.outputStrength;
+
 			Platform.notifyBlocksOfNeighbors( te.getWorldObj(), te.xCoord, te.yCoord, te.zCoord );
 			Platform.notifyBlocksOfNeighbors( te.getWorldObj(), te.xCoord + this.side.offsetX, te.yCoord + this.side.offsetY, te.zCoord + this.side.offsetZ );
 		}
@@ -152,7 +181,7 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 	{
 		if( Platform.isClient() )
 		{
-			return ( this.clientFlags & this.FLAG_ON ) == this.FLAG_ON;
+			return ( this.clientFlags & PartLevelEmitter.FLAG_ON ) == PartLevelEmitter.FLAG_ON;
 		}
 
 		if( !this.proxy.isActive() )
@@ -160,22 +189,48 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 			return false;
 		}
 
+		calculateLevelEmitterStrength();
+		return this.outputStrength > 0;
+	}
+
+	/**
+	 * Calculates the redstone level and sets the internal strength as well as the outputStrength based on the
+	 * RedstoneMode
+	 * The parameter can be used to reset periodic data, currently it is used to set the item throughput rate back to a
+	 * neutral setting.
+	 *
+	 * @param reset true if a reset should be enforced
+	 */
+	private void calculateLevelEmitterStrength()
+	{
+		boolean flipState = this.getConfigManager().getSetting( Settings.REDSTONE_EMITTER ) == RedstoneMode.LOW_SIGNAL;
+		int value = this.strength;
+
 		if( this.getInstalledUpgrades( Upgrades.CRAFTING ) > 0 )
 		{
+			flipState = false;
 			try
 			{
-				return this.proxy.getCrafting().isRequesting( this.config.getAEStackInSlot( 0 ) );
+				value = this.proxy.getCrafting().isRequesting( this.config.getAEStackInSlot( 0 ) ) ? 15 : 0;
 			}
-			catch( GridAccessException e )
+			catch( final GridAccessException e )
 			{
 				// :P
 			}
 
-			return this.prevState;
+		}
+		else if( this.getInstalledUpgrades( Upgrades.COMPARATOR ) > 0 )
+		{
+			value = this.reportingValue <= this.lastReportedValue ? 15 : (int) ( (double) this.lastReportedValue / this.reportingValue * 15 );
+		}
+		else
+		{
+			value = this.reportingValue < this.lastReportedValue + 1 ? 15 : 0;
+
 		}
 
-		boolean flipState = this.getConfigManager().getSetting( Settings.REDSTONE_EMITTER ) == RedstoneMode.LOW_SIGNAL;
-		return flipState ? this.reportingValue >= this.lastReportedValue + 1 : this.reportingValue < this.lastReportedValue + 1;
+		this.strength = value;
+		this.outputStrength = flipState ? 15 - value : value;
 	}
 
 	@MENetworkEventSubscribe
@@ -187,7 +242,7 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 	@Override
 	protected int populateFlags( int cf )
 	{
-		return cf | ( this.prevState ? this.FLAG_ON : 0 );
+		return cf | ( this.prevState ? PartLevelEmitter.FLAG_ON : 0 );
 	}
 
 	@Override
@@ -212,7 +267,7 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 	// update the system...
 	public void configureWatchers()
 	{
-		IAEItemStack myStack = this.config.getAEStackInSlot( 0 );
+		final IAEItemStack myStack = this.config.getAEStackInSlot( 0 );
 
 		if( this.myWatcher != null )
 		{
@@ -298,11 +353,12 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 	private void updateReportingValue( IMEMonitor<IAEItemStack> monitor )
 	{
-		IAEItemStack myStack = this.config.getAEStackInSlot( 0 );
+		final IAEItemStack myStack = this.config.getAEStackInSlot( 0 );
 
 		if( myStack == null )
 		{
 			this.lastReportedValue = 0;
+
 			for( IAEItemStack st : monitor.getStorageList() )
 			{
 				this.lastReportedValue += st.getStackSize();
@@ -310,9 +366,11 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 		}
 		else if( this.getInstalledUpgrades( Upgrades.FUZZY ) > 0 )
 		{
+			final FuzzyMode fzMode = (FuzzyMode) this.getConfigManager().getSetting( Settings.FUZZY_MODE );
+			final Collection<IAEItemStack> fuzzyList = monitor.getStorageList().findFuzzy( myStack, fzMode );
+
 			this.lastReportedValue = 0;
-			FuzzyMode fzMode = (FuzzyMode) this.getConfigManager().getSetting( Settings.FUZZY_MODE );
-			Collection<IAEItemStack> fuzzyList = monitor.getStorageList().findFuzzy( myStack, fzMode );
+
 			for( IAEItemStack st : fuzzyList )
 			{
 				this.lastReportedValue += st.getStackSize();
@@ -320,7 +378,8 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 		}
 		else
 		{
-			IAEItemStack r = monitor.getStorageList().findPrecise( myStack );
+			final IAEItemStack r = monitor.getStorageList().findPrecise( myStack );
+
 			if( r == null )
 			{
 				this.lastReportedValue = 0;
@@ -423,9 +482,9 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 	public void renderTorchAtAngle( double baseX, double baseY, double baseZ )
 	{
-		boolean isOn = this.isLevelEmitterOn();
-		IIcon offTexture = this.is.getIconIndex();
-		IIcon IIcon = ( isOn ? CableBusTextures.LevelEmitterTorchOn.getIcon() : offTexture );
+		final boolean isOn = this.isLevelEmitterOn();
+		final IIcon offTexture = this.is.getIconIndex();
+		final IIcon IIcon = ( isOn ? CableBusTextures.LevelEmitterTorchOn.getIcon() : offTexture );
 		//
 		this.centerX = baseX + 0.5;
 		this.centerY = baseY + 0.5;
@@ -433,9 +492,9 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 		baseY += 7.0 / 16.0;
 
-		double par10 = 0;
+		final double par10 = 0;
 		// double par11 = 0;
-		double Zero = 0;
+		final double Zero = 0;
 
 		/*
 		 * double d5 = (double)IIcon.func_94209_e(); double d6 = (double)IIcon.func_94206_g(); double d7 =
@@ -446,38 +505,38 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 		 * (double)IIcon.func_94214_a(9.0D); double d16 = (double)IIcon.func_94207_b(15.0D);
 		 */
 
-		float var16 = IIcon.getMinU();
-		float var17 = IIcon.getMaxU();
-		float var18 = IIcon.getMinV();
-		float var19 = IIcon.getMaxV();
+		final float var16 = IIcon.getMinU();
+		final float var17 = IIcon.getMaxU();
+		final float var18 = IIcon.getMinV();
+		final float var19 = IIcon.getMaxV();
 		/*
 		 * float var16 = (float)var14 / 256.0F; float var17 = ((float)var14 + 15.99F) / 256.0F; float var18 =
 		 * (float)var15 / 256.0F; float var19 = ((float)var15 + 15.99F) / 256.0F;
 		 */
-		double var20b = offTexture.getInterpolatedU( 7.0D );
-		double var24b = offTexture.getInterpolatedU( 9.0D );
+		final double var20b = offTexture.getInterpolatedU( 7.0D );
+		final double var24b = offTexture.getInterpolatedU( 9.0D );
 
-		double var20 = IIcon.getInterpolatedU( 7.0D );
-		double var24 = IIcon.getInterpolatedU( 9.0D );
-		double var22 = IIcon.getInterpolatedV( 6.0D + ( isOn ? 0 : 1.0D ) );
-		double var26 = IIcon.getInterpolatedV( 8.0D + ( isOn ? 0 : 1.0D ) );
-		double var28 = IIcon.getInterpolatedU( 7.0D );
-		double var30 = IIcon.getInterpolatedV( 13.0D );
-		double var32 = IIcon.getInterpolatedU( 9.0D );
-		double var34 = IIcon.getInterpolatedV( 15.0D );
+		final double var20 = IIcon.getInterpolatedU( 7.0D );
+		final double var24 = IIcon.getInterpolatedU( 9.0D );
+		final double var22 = IIcon.getInterpolatedV( 6.0D + ( isOn ? 0 : 1.0D ) );
+		final double var26 = IIcon.getInterpolatedV( 8.0D + ( isOn ? 0 : 1.0D ) );
+		final double var28 = IIcon.getInterpolatedU( 7.0D );
+		final double var30 = IIcon.getInterpolatedV( 13.0D );
+		final double var32 = IIcon.getInterpolatedU( 9.0D );
+		final double var34 = IIcon.getInterpolatedV( 15.0D );
 
-		double var22b = IIcon.getInterpolatedV( 9.0D );
-		double var26b = IIcon.getInterpolatedV( 11.0D );
+		final double var22b = IIcon.getInterpolatedV( 9.0D );
+		final double var26b = IIcon.getInterpolatedV( 11.0D );
 
 		baseX += 0.5D;
 		baseZ += 0.5D;
-		double var36 = baseX - 0.5D;
-		double var38 = baseX + 0.5D;
-		double var40 = baseZ - 0.5D;
-		double var42 = baseZ + 0.5D;
-		double var44 = 0.0625D;
-		double var422 = 0.1915D + 1.0 / 16.0;
-		double TorchLen = 0.625D;
+		final double var36 = baseX - 0.5D;
+		final double var38 = baseX + 0.5D;
+		final double var40 = baseZ - 0.5D;
+		final double var42 = baseZ + 0.5D;
+		final double var44 = 0.0625D;
+		final double var422 = 0.1915D + 1.0 / 16.0;
+		final double TorchLen = 0.625D;
 
 		double toff = 0.0d;
 
@@ -531,7 +590,7 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 	public void addVertexWithUV( double x, double y, double z, double u, double v )
 	{
-		Tessellator var12 = Tessellator.instance;
+		final Tessellator var12 = Tessellator.instance;
 
 		x -= this.centerX;
 		y -= this.centerY;
@@ -595,7 +654,7 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 
 		renderer.renderAllFaces = true;
 
-		Tessellator tess = Tessellator.instance;
+		final Tessellator tess = Tessellator.instance;
 		tess.setBrightness( rh.getBlock().getMixedBrightnessForBlock( this.getHost().getTile().getWorldObj(), x, y, z ) );
 		tess.setColorOpaque_F( 1.0F, 1.0F, 1.0F );
 
@@ -612,13 +671,13 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 	@Override
 	public int isProvidingStrongPower()
 	{
-		return this.prevState ? 15 : 0;
+		return this.prevState ? this.outputStrength : 0;
 	}
 
 	@Override
 	public int isProvidingWeakPower()
 	{
-		return this.prevState ? 15 : 0;
+		return this.prevState ? this.outputStrength : 0;
 	}
 
 	@Override
@@ -626,11 +685,11 @@ public class PartLevelEmitter extends PartUpgradeable implements IEnergyWatcherH
 	{
 		if( this.isLevelEmitterOn() )
 		{
-			ForgeDirection d = this.side;
+			final ForgeDirection d = this.side;
 
-			double d0 = d.offsetX * 0.45F + ( r.nextFloat() - 0.5F ) * 0.2D;
-			double d1 = d.offsetY * 0.45F + ( r.nextFloat() - 0.5F ) * 0.2D;
-			double d2 = d.offsetZ * 0.45F + ( r.nextFloat() - 0.5F ) * 0.2D;
+			final double d0 = d.offsetX * 0.45F + ( r.nextFloat() - 0.5F ) * 0.2D;
+			final double d1 = d.offsetY * 0.45F + ( r.nextFloat() - 0.5F ) * 0.2D;
+			final double d2 = d.offsetZ * 0.45F + ( r.nextFloat() - 0.5F ) * 0.2D;
 
 			world.spawnParticle( "reddust", 0.5 + x + d0, 0.5 + y + d1, 0.5 + z + d2, 0.0D, 0.0D, 0.0D );
 		}

@@ -40,7 +40,7 @@ public enum Upgrades
 	/**
 	 * Gold Tier Upgrades.
 	 */
-	CAPACITY( 0 ), REDSTONE( 0 ), CRAFTING( 0 ),
+	CAPACITY( 0 ), REDSTONE( 0 ), CRAFTING( 0 ), COMPARATOR( 0 ),
 
 	/**
 	 * Diamond Tier Upgrades.

@@ -95,6 +95,8 @@ public interface IMaterials
 
 	IItemDefinition cardCrafting();
 
+	IItemDefinition cardComparator();
+
 	IItemDefinition enderDust();
 
 	IItemDefinition flour();

@@ -74,6 +74,7 @@ public final class ApiMaterials implements IMaterials
 	private final IItemDefinition cardFuzzy;
 	private final IItemDefinition cardInverter;
 	private final IItemDefinition cardCrafting;
+	private final IItemDefinition cardComparator;
 
 	private final IItemDefinition enderDust;
 	private final IItemDefinition flour;
@@ -151,6 +152,7 @@ public final class ApiMaterials implements IMaterials
 		this.cardFuzzy = new DamagedItemDefinition( itemMultiMaterial.createMaterial( MaterialType.CardFuzzy ) );
 		this.cardInverter = new DamagedItemDefinition( itemMultiMaterial.createMaterial( MaterialType.CardInverter ) );
 		this.cardCrafting = new DamagedItemDefinition( itemMultiMaterial.createMaterial( MaterialType.CardCrafting ) );
+		this.cardComparator = new DamagedItemDefinition( itemMultiMaterial.createMaterial( MaterialType.CardComparator ) );
 
 		this.enderDust = new DamagedItemDefinition( itemMultiMaterial.createMaterial( MaterialType.EnderDust ) );
 		this.flour = new DamagedItemDefinition( itemMultiMaterial.createMaterial( MaterialType.Flour ) );
@@ -377,6 +379,12 @@ public final class ApiMaterials implements IMaterials
 	public IItemDefinition cardCrafting()
 	{
 		return this.cardCrafting;
+	}
+
+	@Override
+	public IItemDefinition cardComparator()
+	{
+		return this.cardComparator;
 	}
 
 	@Override

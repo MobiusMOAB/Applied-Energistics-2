@@ -82,7 +82,9 @@ public enum MaterialType
 
 	EnderDust( 46, AEFeature.QuantumNetworkBridge, "dustEnder,dustEnderPearl", EntitySingularity.class ), Singularity( 47, AEFeature.QuantumNetworkBridge, EntitySingularity.class ), QESingularity( 48, AEFeature.QuantumNetworkBridge, EntitySingularity.class ),
 
-	BlankPattern( 52 ), CardCrafting( 53 );
+	BlankPattern( 52 ), CardCrafting( 53 ),
+
+	CardComparator( 54 );
 
 	private final EnumSet<AEFeature> features;
 	// IIcon for the material.
